@@ -1,11 +1,9 @@
 FROM node:lts-slim
-
-EXPOSE 3000
 WORKDIR /home/node/app
-RUN <<EOF
-npm install
-EOF
-
-COPY . /home/node/app
-
+# First copy package files
+COPY package.json package-lock.json ./
+# Then install dependencies
+RUN npm install
+# Finally copy all other files
+COPY . .
 CMD ["npm", "start"]
