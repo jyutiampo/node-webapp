@@ -1,56 +1,41 @@
 pipeline {
     agent {
-        docker {
-            image 'node:14-alpine'
-            args '-v /var/run/docker.sock:/var/run/docker.sock'
-        }
+        label 'linux-node'
     }
+    
     environment {
-        DOCKER_IMAGE = 'jyutiampo/node-webapp'
-        DOCKER_CREDS = credentials('docker-hub-creds')
+        DOCKER_IMAGE = 'node-webapp'
     }
+    
     stages {
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
-        stage('Build') {
-            steps {
-                sh 'npm install'
-            }
-        }
+        
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${DOCKER_IMAGE}:${BUILD_ID}")
+                    docker.build("${env.DOCKER_IMAGE}")
                 }
             }
         }
-        stage('Push to Docker Hub') {
+        
+        stage('Run Container') {
             steps {
                 script {
-                    docker.withRegistry('', env.DOCKER_CREDS) {
-                        docker.image("${DOCKER_IMAGE}:${BUILD_ID}").push()
-                    }
+                    docker.image("${env.DOCKER_IMAGE}").run('-p 3000:3000 -d')
                 }
             }
         }
-        stage('Deploy') {
-            steps {
-                script {
-                    try {
-                        sh 'docker stop node-webapp || true'
-                        sh 'docker rm node-webapp || true'
-                        docker.image("${DOCKER_IMAGE}:${BUILD_ID}").run(
-                            '--name node-webapp -d -p 3000:3000'
-                        )
-                    } catch (err) {
-                        echo "Deployment failed: ${err}"
-                        currentBuild.result = 'FAILURE'
-                        error('Deployment failed')
-                    }
-                }
+    }
+    
+    post {
+        always {
+            echo 'Cleaning up...'
+            script {
+                docker.safeImageRemove("${env.DOCKER_IMAGE}")
             }
         }
     }
