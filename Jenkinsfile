@@ -17,9 +17,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    // Explicitly copy files to ensure they're in the build context
-                    sh 'ls -la'  // Debug: Verify files exist
-                    docker.build("${env.DOCKER_IMAGE}", "--file Dockerfile .")
+                    sh 'ls -la'
+                    docker.build("${env.DOCKER_IMAGE}")
                 }
             }
         }
@@ -27,7 +26,9 @@ pipeline {
         stage('Run Container') {
             steps {
                 script {
-                    docker.image("${env.DOCKER_IMAGE}").run('-p 3000:3000 -d')
+                    sh 'docker stop node-webapp-container || true'
+                    sh 'docker rm node-webapp-container || true'
+                    docker.image("${env.DOCKER_IMAGE}").run('-p 3000:3000 -d --name node-webapp-container')
                 }
             }
         }
@@ -37,9 +38,8 @@ pipeline {
         always {
             echo 'Cleaning up...'
             script {
-                // Simplified cleanup (avoid sandbox issues)
-                sh 'docker rm -f ${env.DOCKER_IMAGE} || true'
-                sh 'docker rmi ${env.DOCKER_IMAGE} || true'
+                sh "docker rm -f node-webapp-container || true"
+                sh "docker rmi ${env.DOCKER_IMAGE} || true"
             }
         }
     }
