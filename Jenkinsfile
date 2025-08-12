@@ -17,7 +17,9 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${env.DOCKER_IMAGE}")
+                    // Explicitly copy files to ensure they're in the build context
+                    sh 'ls -la'  // Debug: Verify files exist
+                    docker.build("${env.DOCKER_IMAGE}", "--file Dockerfile .")
                 }
             }
         }
@@ -35,7 +37,9 @@ pipeline {
         always {
             echo 'Cleaning up...'
             script {
-                docker.safeImageRemove("${env.DOCKER_IMAGE}")
+                // Simplified cleanup (avoid sandbox issues)
+                sh 'docker rm -f ${env.DOCKER_IMAGE} || true'
+                sh 'docker rmi ${env.DOCKER_IMAGE} || true'
             }
         }
     }
