@@ -1,36 +1,57 @@
-pipeline {
+piipeline {
     agent {
-        label 'linux-node'
+        docker {
+            image 'node:14-alpine'
+            args '-v /var/run/docker.sock:/var/run/docker.sock'
+        }
     }
     environment {
-        DOCKER_IMAGE = 'node-webapp'
+        DOCKER_IMAGE = 'jyutiampo/node-webapp'
+        DOCKER_CREDS = credentials('docker-hub-creds')
     }
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
                 checkout scm
+            }
+        }
+        stage('Build') {
+            steps {
+                sh 'npm install'
             }
         }
         stage('Build Docker Image') {
             steps {
                 script {
-                    docker.build("${DOCKER_IMAGE}")
+                    docker.build("${DOCKER_IMAGE}:${BUILD_ID}")
                 }
             }
         }
-        stage('Run Container') {
+        stage('Push to Docker Hub') {
             steps {
                 script {
-                    sh 'docker stop node-webapp-container || true'
-                    sh 'docker rm node-webapp-container || true'
-                    docker.image("${DOCKER_IMAGE}").run('-p 3000:3000 --name node-webapp-container -d')
+                    docker.withRegistry('', env.DOCKER_CREDS) {
+                        docker.image("${DOCKER_IMAGE}:${BUILD_ID}").push()
+                    }
                 }
             }
         }
-    }
-    post {
-        always {
-            echo 'Pipeline completed!'
+        stage('Deploy') {
+            steps {
+                script {
+                    try {
+                        sh 'docker stop node-webapp || true'
+                        sh 'docker rm node-webapp || true'
+                        docker.image("${DOCKER_IMAGE}:${BUILD_ID}").run(
+                            '--name node-webapp -d -p 3000:3000'
+                        )
+                    } catch (err) {
+                        echo "Deployment failed: ${err}"
+                        currentBuild.result = 'FAILURE'
+                        error('Deployment failed')
+                    }
+                }
+            }
         }
     }
 }
